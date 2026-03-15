@@ -22,7 +22,6 @@
         .btn-onyx { background: #18181B; color: #F59E0B; border: 1px solid #3F3F46; transition: all 0.3s; }
         .btn-onyx:hover { background: #27272A; color: #FFFFFF; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        /* 放大燈箱 */
         #barcode-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 100; align-items: center; justify-content: center; flex-direction: column; }
         #modal-svg { background: white; padding: 20px; border-radius: 12px; width: 90%; max-height: 300px; }
     </style>
@@ -93,7 +92,6 @@
     </main>
 
     <script>
-        // --- Supabase 資訊 ---
         const SUPABASE_URL = "https://cyzjgvdhthrzkfciaqcl.supabase.co";
         const SUPABASE_KEY = "sb_publishable_GErSlEWWvuOdUU0AN_r3yQ_OjTAyHwZ";
         const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -107,9 +105,11 @@
         const tableBody = document.getElementById('table-body');
         const countValue = document.querySelector('#item-count span:last-child');
 
-        // 音效
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        function playSound(t){const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.connect(g);g.connect(audioCtx.destination);if(t==='success'){o.type='sine';o.frequency.setValueAtTime(880,audioCtx.currentTime);g.gain.setValueAtTime(0.05,audioCtx.currentTime);o.start();g.gain.exponentialRampToValueAtTime(0.01,audioCtx.currentTime+0.15);o.stop(audioCtx.currentTime+0.15)}else{o.type='sawtooth';o.frequency.setValueAtTime(150,audioCtx.currentTime);g.gain.setValueAtTime(0.1,audioCtx.currentTime);o.start();g.gain.exponentialRampToValueAtTime(0.01,audioCtx.currentTime+0.4);o.stop(audioCtx.currentTime+0.4)}}
+        function playSound(t){
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.connect(g);g.connect(audioCtx.destination);if(t==='success'){o.type='sine';o.frequency.setValueAtTime(880,audioCtx.currentTime);g.gain.setValueAtTime(0.05,audioCtx.currentTime);o.start();g.gain.exponentialRampToValueAtTime(0.01,audioCtx.currentTime+0.15);o.stop(audioCtx.currentTime+0.15)}else{o.type='sawtooth';o.frequency.setValueAtTime(150,audioCtx.currentTime);g.gain.setValueAtTime(0.1,audioCtx.currentTime);o.start();g.gain.exponentialRampToValueAtTime(0.01,audioCtx.currentTime+0.4);o.stop(audioCtx.currentTime+0.4)}
+        }
 
         window.onload = async () => {
             await refreshData();
@@ -118,18 +118,14 @@
         };
 
         async function refreshData() {
-            const { data, error } = await _supabase.from('scans').select('*');
-            if (error) {
-                console.error("讀取失敗原因:", error.message);
-                statusText.innerText = "讀取失敗: " + error.message;
-            } else {
-                console.log("雲端現有資料:", data);
+            const { data, error } = await _supabase.from('scans').select('*').order('id', { ascending: true });
+            if (!error) {
                 scannedItems = data;
                 renderTable();
             }
         }
 
-        document.addEventListener('click', () => { if (audioCtx.state === 'suspended') audioCtx.resume(); inputEl.focus(); });
+        document.addEventListener('click', () => { inputEl.focus(); });
 
         inputEl.addEventListener('keypress', async (e) => {
             if (e.key === 'Enter') {
@@ -141,14 +137,26 @@
 
         async function processBarcode(code) {
             if (!tempBarcode1) {
-                if (code.length !== 9) { playSound('error'); return; }
+                if (code.length !== 9) { 
+                    playSound('error'); 
+                    statusText.innerText = "ERROR: B1 MUST BE 9-DIGIT";
+                    statusDot.className = "w-2.5 h-2.5 bg-red-500 rounded-full";
+                    return; 
+                }
                 tempBarcode1 = code;
                 statusText.innerText = "WAITING FOR B2 (16-DIGIT)...";
                 statusDot.className = "w-2.5 h-2.5 bg-blue-500 rounded-full animate-pulse";
             } else {
-                if (code.length !== 16 || scannedItems.some(i => i.b2 === code)) { playSound('error'); return; }
+                if (code.length !== 16 || scannedItems.some(i => i.b2 === code)) { 
+                    playSound('error'); 
+                    statusText.innerText = "ERROR: B2 INVALID OR DUPLICATE";
+                    statusDot.className = "w-2.5 h-2.5 bg-red-500 rounded-full";
+                    tempBarcode1 = null; // 重置狀態
+                    return; 
+                }
                 playSound('success');
-                const ts = `${new Date().getDate()}-${new Date().getMonth()+1}-${new Date().getFullYear()}, ${new Date().toLocaleTimeString('en-GB')}`;
+                const now = new Date();
+                const ts = `${now.getDate()}-${now.getMonth()+1}-${now.getFullYear()}, ${now.toLocaleTimeString('en-GB')}`;
                 await _supabase.from('scans').insert([{ b1: tempBarcode1, b2: code, time: ts }]);
                 tempBarcode1 = null;
                 statusText.innerText = "SUCCESSFULLY RECORDED.";
@@ -169,15 +177,17 @@
                     <tr class="hover:bg-zinc-50 transition-colors">
                         <td rowspan="2" class="p-6 text-center font-bold text-zinc-200 text-4xl border-r">${originalIndex}</td>
                         <td class="p-5 morandi-pink font-mono font-bold border-l-[10px] border-rose-200 text-sm shadow-inner">${item.b1}</td>
-                        <td class="p-2 bg-white"><svg id="b1-${originalIndex}" class="barcode-svg" onclick="zoomBarcode('${item.b1}')"></svg></td>
+                        <td class="p-2 bg-white text-center"><svg id="b1-${originalIndex}" class="barcode-svg" onclick="zoomBarcode('${item.b1}')"></svg></td>
                         <td rowspan="2" class="p-5 text-right font-mono text-[9px] text-zinc-400">${item.time}</td>
                         <td rowspan="2" class="p-5 text-center no-print">
-                            <button onclick="deleteItem(${item.id})" class="text-zinc-200 hover:text-red-500"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
+                            <button onclick="deleteItem(${item.id})" class="text-zinc-200 hover:text-red-500 transition-all transform hover:scale-110">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
                         </td>
                     </tr>
-                    <tr>
+                    <tr class="hover:bg-zinc-50 transition-colors">
                         <td class="p-5 bg-zinc-50 font-mono font-bold text-sm border-l-[10px] border-zinc-100 shadow-inner">${item.b2}</td>
-                        <td class="p-2 bg-white"><svg id="b2-${originalIndex}" class="barcode-svg" onclick="zoomBarcode('${item.b2}')"></svg></td>
+                        <td class="p-2 bg-white text-center"><svg id="b2-${originalIndex}" class="barcode-svg" onclick="zoomBarcode('${item.b2}')"></svg></td>
                     </tr>`;
                 tableBody.insertAdjacentHTML('beforeend', row);
                 const opts = { format: "CODE39", height: 100, width: 1.2, displayValue: false, margin: 10 };
@@ -193,32 +203,46 @@
         async function exportToPDF() {
             if (scannedItems.length === 0) return;
             const originalHTML = tableBody.innerHTML;
+            
+            // --- 修正 PDF 匯出內容：包含 Header 並加入渲染延遲 ---
             tableBody.innerHTML = '';
             scannedItems.forEach((item, index) => {
                 const num = index + 1;
-                const row = `<tr><td rowspan="2" style="border:1px solid #eee; padding:20px; text-align:center; font-size:30px; color:#ccc;">${num}</td>
-                             <td style="background:#FFF1F2; padding:20px; font-weight:bold; border-left:10px solid #FECDD3;">${item.b1}</td>
-                             <td style="padding:10px; text-align:center;"><svg id="pdf-b1-${num}"></svg></td>
-                             <td rowspan="2" style="padding:20px; text-align:right; font-size:10px; color:#999;">${item.time}</td></tr>
-                             <tr><td style="padding:20px; font-weight:bold; border-left:10px solid #eee;">${item.b2}</td>
-                             <td style="padding:10px; text-align:center;"><svg id="pdf-b2-${num}"></svg></td></tr>`;
+                const row = `
+                    <tr>
+                        <td rowspan="2" style="border:1px solid #eee; padding:20px; text-align:center; font-size:30px; color:#ccc;">${num}</td>
+                        <td style="background:#FFF1F2; padding:20px; font-weight:bold; border-left:10px solid #FECDD3; font-size:14px;">${item.b1}</td>
+                        <td style="padding:10px; text-align:center;"><svg id="pdf-b1-${num}"></svg></td>
+                        <td rowspan="2" style="padding:20px; text-align:right; font-size:10px; color:#999;">${item.time}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:20px; font-weight:bold; border-left:10px solid #eee; font-size:14px;">${item.b2}</td>
+                        <td style="padding:10px; text-align:center;"><svg id="pdf-b2-${num}"></svg></td>
+                    </tr>`;
                 tableBody.insertAdjacentHTML('beforeend', row);
                 JsBarcode(`#pdf-b1-${num}`, item.b1, { format: "CODE39", height: 100, width: 1.2, displayValue: false });
                 JsBarcode(`#pdf-b2-${num}`, item.b2, { format: "CODE39", height: 100, width: 1.2, displayValue: false });
             });
+
+            // 等待 500ms 確保所有條碼 SVG 渲染完成
+            await new Promise(resolve => setTimeout(resolve, 500));
+
             const table = document.getElementById('barcode-table');
-            const canvas = await html2canvas(table, { scale: 2 });
+            const canvas = await html2canvas(table, { scale: 2, useCORS: true });
             const pdf = new jspdf.jsPDF('p', 'mm', 'a4');
             const pw = pdf.internal.pageSize.getWidth(), ph = pdf.internal.pageSize.getHeight();
             const ih = (canvas.height * pw) / canvas.width;
             let hl = ih, pos = 0;
+
             pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, pos, pw, ih);
             hl -= ph;
             while (hl > 0) { pos = hl - ih; pdf.addPage(); pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, pos, pw, ih); hl -= ph; }
+            
             const now = new Date();
             const dateStr = `${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
-            pdf.save(`${dateStr} 合勝大佃II萊爾富 ${scannedItems.length}.pdf`);
-            renderTable();
+            pdf.save(`${dateStr} 合勝大佃ll萊爾富 ${scannedItems.length}.pdf`);
+            
+            renderTable(); // 還原畫面顯示
         }
     </script>
 </body>
