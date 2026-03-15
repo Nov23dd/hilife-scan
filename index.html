@@ -3,74 +3,96 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>合勝大佃II - 萊爾富雲端系統</title>
+    <title>合勝大佃 - 萊爾富高頻刷單系統</title>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-        /* 背景更換為 #BEC3C3 */
-        body { font-family: 'Inter', sans-serif; background-color: #BEC3C3; }
-        .glass-card { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(0, 0, 0, 0.05); }
-        .morandi-pink { background-color: #fff1f2 !important; color: #9f1239; }
-        /* 條碼容器高度配合拉高 */
-        .barcode-svg { width: 100%; max-height: 100px; }
+        body { font-family: 'Inter', sans-serif; background-color: #E5E7EB; color: #1E293B; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+        
+        /* 凍結上方區域 */
+        .sticky-header { flex-shrink: 0; z-index: 50; }
+        .nav-onyx { background: linear-gradient(135deg, #18181B 0%, #27272A 100%); }
+        .gold-line { height: 3px; background: linear-gradient(90deg, #D4AF37, #F59E0B); }
+        
+        .scanner-card { 
+            background: rgba(255, 255, 255, 0.98); 
+            backdrop-filter: blur(12px); 
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        /* 滾動內容區 */
+        .scrollable-content { flex-grow: 1; overflow-y: auto; padding-bottom: 80px; }
+        
+        .morandi-pink { background-color: #FFF1F2 !important; color: #9F1239; }
+        .barcode-svg { width: 100%; height: 110px; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        .btn-metal { background: linear-gradient(180deg, #475569 0%, #1e293b 100%); transition: all 0.2s; }
-        .btn-metal:active { transform: translateY(1px); filter: brightness(1.1); }
+        .btn-onyx { background: #18181B; color: #F59E0B; border: 1px solid #3F3F46; transition: all 0.3s; }
+        .btn-onyx:hover { background: #27272A; color: #FFFFFF; }
+        .status-badge { font-size: 10px; font-weight: 800; letter-spacing: 0.1em; }
     </style>
 </head>
-<body class="text-slate-900">
+<body>
 
-    <nav class="bg-slate-900 text-slate-100 p-5 shadow-2xl sticky top-0 z-50">
-        <div class="max-w-5xl mx-auto flex justify-between items-center">
-            <div class="flex items-center space-x-3">
-                <div class="w-3 h-8 bg-red-500 rounded-full"></div>
-                <h1 class="text-lg font-bold tracking-tight">萊爾富雲端刷單 <span class="text-slate-400 font-light">| 合勝大佃II</span></h1>
-            </div>
-            <div id="item-count" class="bg-slate-800 border border-slate-700 px-4 py-1 rounded-lg font-mono text-sm">
-                ITEMS: <span class="text-emerald-400">0</span>
-            </div>
-        </div>
-    </nav>
-
-    <main class="max-w-5xl mx-auto p-4 md:p-8 space-y-6">
-        <div class="glass-card rounded-2xl p-6 shadow-xl">
-            <div class="flex flex-col md:flex-row gap-4">
-                <div class="flex-1 relative">
-                    <input type="text" id="barcode-input" autofocus
-                           class="w-full pl-4 pr-12 py-4 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-slate-400/20 focus:border-slate-400 outline-none transition-all text-xl font-mono shadow-inner"
-                           placeholder="等待掃描條碼...">
+    <header class="sticky-header">
+        <nav class="nav-onyx text-white">
+            <div class="max-w-6xl mx-auto px-6 py-3 flex justify-between items-center">
+                <div class="flex items-center space-x-4">
+                    <div class="w-1 h-8 bg-amber-500 rounded-full"></div>
+                    <div>
+                        <h1 class="text-lg font-bold tracking-tighter italic leading-none">HI-LIFE <span class="text-amber-500">CLOUD</span></h1>
+                        <p class="text-[8px] text-zinc-500 tracking-[0.3em] font-medium uppercase mt-1">合勝大佃 | 萊爾富專屬系統</p>
+                    </div>
                 </div>
-                <div class="flex gap-2">
-                    <button onclick="exportToPDF()" class="btn-metal text-white px-8 py-4 rounded-xl font-bold flex-1 md:flex-none shadow-lg">匯出報表</button>
-                    <button onclick="clearAll()" class="bg-white border border-slate-200 text-slate-400 hover:text-red-500 px-4 py-4 rounded-xl transition-all shadow-md">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                    </button>
+                <div id="item-count" class="bg-zinc-800/50 border border-zinc-700 px-4 py-1 rounded-lg text-center">
+                    <span class="text-[9px] text-zinc-500 font-bold block leading-none mb-1 uppercase text-right">Count</span>
+                    <span class="text-xl font-mono text-amber-500 leading-none">0</span>
                 </div>
             </div>
-            <div id="status-msg" class="mt-4 text-sm font-medium text-slate-500 flex items-center">
-                <span class="w-2 h-2 bg-slate-400 rounded-full animate-pulse mr-2"></span>
-                準備就緒
+            <div class="gold-line"></div>
+        </nav>
+
+        <div class="scanner-card">
+            <div class="max-w-6xl mx-auto p-4 md:p-6">
+                <div class="flex flex-col lg:flex-row gap-4 items-center">
+                    <div class="flex-1 w-full relative">
+                        <input type="text" id="barcode-input" autofocus
+                               class="w-full pl-6 pr-14 py-4 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-8 focus:ring-amber-500/5 focus:border-zinc-400 outline-none transition-all text-2xl font-mono tracking-tighter shadow-inner placeholder:text-zinc-300"
+                               placeholder="掃描條碼 (9碼 / 16碼)...">
+                    </div>
+                    <div class="flex gap-2 w-full lg:w-auto">
+                        <button onclick="exportToPDF()" class="btn-onyx px-8 py-4 rounded-xl font-bold flex-1 lg:flex-none shadow-lg">匯出 PDF</button>
+                        <button onclick="clearAll()" class="bg-white border border-zinc-200 text-zinc-400 hover:text-red-500 px-4 py-4 rounded-xl transition-all shadow-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
+                    </div>
+                </div>
+                <div id="status-msg" class="mt-3 flex items-center space-x-3">
+                    <span id="status-dot" class="w-2.5 h-2.5 bg-zinc-300 rounded-full"></span>
+                    <p id="status-text" class="status-badge text-zinc-400 uppercase font-bold text-left">Waiting for input...</p>
+                </div>
             </div>
         </div>
+    </header>
 
-        <div class="glass-card rounded-2xl shadow-2xl border border-white/50 overflow-hidden">
-            <div class="overflow-x-auto no-scrollbar">
+    <main class="scrollable-content">
+        <div class="max-w-6xl mx-auto p-4 md:p-6">
+            <div class="bg-white rounded-[2rem] shadow-xl border border-white overflow-hidden">
                 <table id="barcode-table" class="w-full border-collapse">
-                    <thead class="bg-slate-100/80">
-                        <tr class="text-slate-500 text-xs uppercase tracking-widest border-b border-slate-200">
-                            <th class="p-4 font-semibold w-16 text-center">No.</th>
-                            <th class="p-4 font-semibold text-left">條碼明細 (Code 39)</th>
-                            <th class="p-4 font-semibold text-center w-80">可讀取條碼 (拉長強化)</th>
-                            <th class="p-4 font-semibold text-right">時間戳記</th>
-                            <th class="p-4 font-semibold text-center w-16 no-print"></th>
+                    <thead class="bg-zinc-50 sticky top-0 z-10 border-b border-zinc-100 shadow-sm">
+                        <tr class="text-zinc-400 text-[10px] uppercase tracking-[0.2em]">
+                            <th class="py-4 px-4 font-bold w-20 text-center">No.</th>
+                            <th class="py-4 px-4 font-bold text-left">Details</th>
+                            <th class="py-4 px-4 font-bold text-center w-80">Printable Barcode</th>
+                            <th class="py-4 px-4 font-bold text-right">Time Log</th>
+                            <th class="py-4 px-4 font-bold text-center w-16 no-print"></th>
                         </tr>
                     </thead>
-                    <tbody id="table-body" class="divide-y divide-slate-200"></tbody>
+                    <tbody id="table-body" class="divide-y divide-zinc-50">
+                        </tbody>
                 </table>
             </div>
         </div>
@@ -82,17 +104,34 @@
         let tempBarcode1 = null;
 
         const inputEl = document.getElementById('barcode-input');
-        const statusEl = document.getElementById('status-msg');
+        const statusText = document.getElementById('status-text');
+        const statusDot = document.getElementById('status-dot');
         const tableBody = document.getElementById('table-body');
-        const countEl = document.getElementById('item-count').querySelector('span');
+        const countValue = document.getElementById('item-count').querySelectorAll('span')[1];
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playSound(type) {
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode); gainNode.connect(audioCtx.destination);
+            if (type === 'success') {
+                oscillator.type = 'sine'; oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+                gainNode.gain.setValueAtTime(0.05, audioCtx.currentTime); oscillator.start();
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15); oscillator.stop(audioCtx.currentTime + 0.15);
+            } else {
+                oscillator.type = 'sawtooth'; oscillator.frequency.setValueAtTime(150, audioCtx.currentTime);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime); oscillator.start();
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.4); oscillator.stop(audioCtx.currentTime + 0.4);
+            }
+        }
 
         window.onload = () => {
-            const saved = localStorage.getItem('hiLife_Pro_V4');
+            const saved = localStorage.getItem('hiLife_Pro_V11');
             if (saved) { scannedItems = JSON.parse(saved); renderTable(); }
             inputEl.focus();
         };
 
-        document.addEventListener('click', () => inputEl.focus());
+        document.addEventListener('click', () => { if (audioCtx.state === 'suspended') audioCtx.resume(); inputEl.focus(); });
 
         inputEl.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
@@ -104,82 +143,124 @@
 
         function processBarcode(code) {
             if (!tempBarcode1) {
+                if (code.length !== 9) {
+                    playSound('error');
+                    statusText.innerText = `ERROR: 9-DIGIT REQ (GOT ${code.length})`;
+                    statusDot.className = "w-2.5 h-2.5 bg-red-600 rounded-full mr-2 animate-ping";
+                    return;
+                }
                 tempBarcode1 = code;
-                statusEl.innerHTML = `<span class="w-2 h-2 bg-blue-500 rounded-full mr-2"></span> 等待第二段條碼...`;
-                statusEl.className = "mt-4 text-sm font-medium text-blue-700 flex items-center";
+                statusText.innerText = `B1 OK: ${code}. WAITING FOR B2 (16-DIGIT)`;
+                statusDot.className = "w-2.5 h-2.5 bg-blue-500 rounded-full mr-2 animate-pulse";
             } else {
+                if (code.length !== 16) {
+                    playSound('error');
+                    statusText.innerText = `ERROR: 16-DIGIT REQ (GOT ${code.length})`;
+                    statusDot.className = "w-2.5 h-2.5 bg-red-600 rounded-full mr-2 animate-ping";
+                    return;
+                }
                 if (scannedItems.some(item => item.b2 === code)) {
-                    statusEl.innerHTML = `<span class="w-2 h-2 bg-red-600 rounded-full mr-2"></span> 警告：重複過刷！`;
-                    statusEl.className = "mt-4 text-sm font-medium text-red-600 flex items-center";
+                    playSound('error');
+                    statusText.innerText = `DUPLICATE: ${code} ALREADY LOGGED`;
+                    statusDot.className = "w-2.5 h-2.5 bg-red-600 rounded-full mr-2";
                     tempBarcode1 = null;
                     return;
                 }
+                
+                playSound('success');
                 const now = new Date();
                 const ts = `${String(now.getDate()).padStart(2,'0')}-${String(now.getMonth()+1).padStart(2,'0')}-${now.getFullYear()}, ${now.toLocaleTimeString('en-GB')}`;
-                scannedItems.unshift({ b1: tempBarcode1, b2: code, time: ts });
+                
+                scannedItems.push({ b1: tempBarcode1, b2: code, time: ts });
                 renderTable();
+                
+                // --- 移除自動捲動邏輯，讓操作人員留在原本的位置 ---
+                
                 tempBarcode1 = null;
-                statusEl.innerHTML = `<span class="w-2 h-2 bg-emerald-600 rounded-full mr-2"></span> 掃描完成`;
-                statusEl.className = "mt-4 text-sm font-medium text-emerald-700 flex items-center";
+                statusText.innerText = "ENTRY LOGGED. VIEW AT TOP OF LIST.";
+                statusDot.className = "w-2.5 h-2.5 bg-emerald-500 rounded-full mr-2";
             }
         }
 
         function renderTable() {
             tableBody.innerHTML = '';
-            scannedItems.forEach((item, index) => {
-                const realIndex = scannedItems.length - index;
+            // 最新掃描的在視覺最上方顯示 (No. 最大)
+            [...scannedItems].reverse().forEach((item, index) => {
+                const originalIndex = scannedItems.length - index;
                 const row = `
-                    <tr class="hover:bg-white/50 transition-colors">
-                        <td rowspan="2" class="p-4 text-center font-bold text-slate-400 text-3xl border-r border-slate-100">${realIndex}</td>
-                        <td class="p-4 morandi-pink font-mono font-bold border-l-8 border-rose-300 text-base shadow-inner">${item.b1}</td>
-                        <td class="p-2 bg-white text-center"><svg id="b1-${index}" class="barcode-svg"></svg></td>
-                        <td rowspan="2" class="p-4 text-right font-mono text-[10px] text-slate-500 leading-tight">${item.time}</td>
-                        <td rowspan="2" class="p-4 text-center no-print">
-                            <button onclick="deleteItem(${index})" class="text-slate-300 hover:text-red-500 transition-colors">
+                    <tr class="hover:bg-zinc-50 transition-colors">
+                        <td rowspan="2" class="p-6 text-center font-bold text-zinc-200 text-4xl border-r border-zinc-50">${originalIndex}</td>
+                        <td class="p-5 morandi-pink font-mono font-bold border-l-[10px] border-rose-200 text-sm shadow-inner">${item.b1}</td>
+                        <td class="p-3 bg-white text-center flex justify-center"><svg id="b1-${originalIndex}" class="barcode-svg"></svg></td>
+                        <td rowspan="2" class="p-5 text-right font-mono text-[9px] text-zinc-400 leading-tight">${item.time}</td>
+                        <td rowspan="2" class="p-5 text-center no-print">
+                            <button onclick="deleteItem(${scannedItems.indexOf(item)})" class="text-zinc-200 hover:text-red-500 transition-all transform hover:scale-110">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
                             </button>
                         </td>
                     </tr>
-                    <tr class="hover:bg-white/50 transition-colors">
-                        <td class="p-4 bg-white font-mono font-bold text-base border-l-8 border-slate-200 shadow-inner">${item.b2}</td>
-                        <td class="p-2 bg-white text-center"><svg id="b2-${index}" class="barcode-svg"></svg></td>
+                    <tr class="hover:bg-zinc-50 transition-colors">
+                        <td class="p-5 bg-white font-mono font-bold text-sm border-l-[10px] border-zinc-100 shadow-inner">${item.b2}</td>
+                        <td class="p-3 bg-white text-center flex justify-center"><svg id="b2-${originalIndex}" class="barcode-svg"></svg></td>
                     </tr>
                 `;
                 tableBody.insertAdjacentHTML('beforeend', row);
-                // 這裡將 height 從 40 調整為 85，讓條碼明顯拉長
-                const opts = { format: "CODE39", height: 85, displayValue: false, margin: 10, width: 2 };
-                JsBarcode(`#b1-${index}`, item.b1, opts);
-                JsBarcode(`#b2-${index}`, item.b2, opts);
+                const opts = { format: "CODE39", height: 100, width: 1.2, displayValue: false, margin: 10 };
+                JsBarcode(`#b1-${originalIndex}`, item.b1, opts);
+                JsBarcode(`#b2-${originalIndex}`, item.b2, opts);
             });
-            countEl.innerText = scannedItems.length;
-            localStorage.setItem('hiLife_Pro_V4', JSON.stringify(scannedItems));
+            countValue.innerText = scannedItems.length;
+            localStorage.setItem('hiLife_Pro_V11', JSON.stringify(scannedItems));
         }
 
-        function deleteItem(index) {
-            scannedItems.splice(index, 1);
-            renderTable();
-        }
-
-        function clearAll() {
-            if(confirm('確定要清空所有紀錄嗎？')) {
-                scannedItems = [];
-                localStorage.removeItem('hiLife_Pro_V4');
-                renderTable();
-            }
-        }
+        function deleteItem(index) { if(confirm('DELETE?')) { scannedItems.splice(index, 1); renderTable(); } }
+        function clearAll() { if(confirm('CLEAR ALL?')) { scannedItems = []; localStorage.removeItem('hiLife_Pro_V11'); renderTable(); } }
 
         async function exportToPDF() {
             if (scannedItems.length === 0) return;
+            const originalHTML = tableBody.innerHTML;
+            tableBody.innerHTML = '';
+            scannedItems.forEach((item, index) => {
+                const num = index + 1;
+                const row = `
+                    <tr>
+                        <td rowspan="2" style="border:1px solid #eee; padding:20px; text-align:center; font-size:30px; color:#ccc;">${num}</td>
+                        <td style="background:#FFF1F2; padding:20px; font-weight:bold; border-left:10px solid #FECDD3;">${item.b1}</td>
+                        <td style="padding:10px; text-align:center;"><svg id="pdf-b1-${num}"></svg></td>
+                        <td rowspan="2" style="padding:20px; text-align:right; font-size:10px; color:#999;">${item.time}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:20px; font-weight:bold; border-left:10px solid #eee;">${item.b2}</td>
+                        <td style="padding:10px; text-align:center;"><svg id="pdf-b2-${num}"></svg></td>
+                    </tr>
+                `;
+                tableBody.insertAdjacentHTML('beforeend', row);
+                JsBarcode(`#pdf-b1-${num}`, item.b1, { format: "CODE39", height: 100, width: 1.2, displayValue: false });
+                JsBarcode(`#pdf-b2-${num}`, item.b2, { format: "CODE39", height: 100, width: 1.2, displayValue: false });
+            });
+
             const table = document.getElementById('barcode-table');
             const canvas = await html2canvas(table, { scale: 2 });
             const imgData = canvas.toDataURL('image/png');
             const pdf = new jspdf.jsPDF('p', 'mm', 'a4');
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+            const pageWidth = pdf.internal.pageSize.getWidth();
+            const pageHeight = pdf.internal.pageSize.getHeight();
+            const imgWidth = pageWidth;
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+            let heightLeft = imgHeight;
+            let position = 0;
+            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+            while (heightLeft > 0) {
+                position = heightLeft - imgHeight;
+                pdf.addPage();
+                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                heightLeft -= pageHeight;
+            }
             const now = new Date();
             const dateStr = `${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
-            pdf.save(`${dateStr} 合勝大佃II萊爾富 ${scannedItems.length}.pdf`);
+            pdf.save(`${dateStr} 合勝大佃ll萊爾富 ${scannedItems.length}.pdf`);
+            renderTable();
         }
     </script>
 </body>
