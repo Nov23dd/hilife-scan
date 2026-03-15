@@ -118,8 +118,15 @@
         };
 
         async function refreshData() {
-            const { data, error } = await _supabase.from('scans').select('*').order('id', { ascending: true });
-            if (!error) { scannedItems = data; renderTable(); }
+            const { data, error } = await _supabase.from('scans').select('*');
+            if (error) {
+                console.error("讀取失敗原因:", error.message);
+                statusText.innerText = "讀取失敗: " + error.message;
+            } else {
+                console.log("雲端現有資料:", data);
+                scannedItems = data;
+                renderTable();
+            }
         }
 
         document.addEventListener('click', () => { if (audioCtx.state === 'suspended') audioCtx.resume(); inputEl.focus(); });
