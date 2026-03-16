@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>合勝大佃 - 萊爾富極速雲端系統</title>
+    <title>合勝大佃 - 萊爾富雲端系統</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -21,15 +21,17 @@
         .barcode-svg { width: 100%; height: 110px; }
         .btn-onyx { background: #18181B; color: #F59E0B; border: 1px solid #3F3F46; transition: all 0.3s; }
         .btn-onyx:disabled { opacity: 0.5; cursor: not-allowed; }
-        #barcode-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 100; align-items: center; justify-content: center; flex-direction: column; }
-        #modal-svg { background: white; padding: 20px; border-radius: 12px; width: 90%; max-height: 300px; }
+        /* 進度遮罩樣式 */
+        .progress-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 200; align-items: center; justify-content: center; color: white; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
     </style>
 </head>
 <body>
 
-    <div id="barcode-modal" onclick="this.style.display='none'">
-        <p class="text-white mb-4 font-bold uppercase">Tap to close</p>
-        <svg id="modal-svg"></svg>
+    <div id="progress-overlay" class="progress-overlay flex-col">
+        <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-amber-500 mb-6"></div>
+        <p id="progress-text" class="text-xl font-bold tracking-widest">準備中...</p>
+        <p class="text-zinc-500 mt-2 text-sm">請勿關閉視窗，正在分頁產出 PDF</p>
     </div>
 
     <header class="sticky-header">
@@ -116,10 +118,8 @@
         window.onload = async () => {
             await refreshData();
             inputEl.focus();
-            // 監聽雲端變動，但只在「外部」裝置變動時觸發刷新，避免自己掃描也觸發全表刷新
             _supabase.channel('custom-all-channel').on('postgres_changes', { event: '*', schema: 'public', table: 'scans' }, (payload) => {
                 if (payload.eventType === 'INSERT') {
-                    // 如果這筆不是本機剛新增的，才需要刷新
                     if (!scannedItems.some(item => item.b2 === payload.new.b2)) refreshData();
                 } else {
                     refreshData();
@@ -142,23 +142,21 @@
                 statusText.innerText = "WAITING FOR B2 (16-DIGIT)...";
                 statusDot.className = "w-2.5 h-2.5 bg-blue-500 rounded-full animate-pulse";
             } else {
-                if (code.length !== 16 || scannedItems.some(i => i.b2 === code)) { 
-                    playSound('error'); 
+                if (code.length !== 16 || scannedItems.some(i => i.b2 === code)) { 
+                    playSound('error'); 
                     statusText.innerText = "ERROR: B2 INVALID OR DUPLICATE";
                     statusDot.className = "w-2.5 h-2.5 bg-red-500 rounded-full";
                     tempBarcode1 = null;
-                    return; 
+                    return; 
                 }
                 
                 playSound('success');
                 const ts = `${new Date().getDate()}-${new Date().getMonth()+1}-${new Date().getFullYear()}, ${new Date().toLocaleTimeString('en-GB')}`;
                 
-                // 樂觀更新：先加到本機列表並顯示，不等雲端回傳
                 const newItem = { b1: tempBarcode1, b2: code, time: ts, local: true };
                 scannedItems.push(newItem);
                 addSingleRowToUI(newItem, scannedItems.length);
                 
-                // 非同步上傳到雲端，不阻塞作業
                 _supabase.from('scans').insert([{ b1: tempBarcode1, b2: code, time: ts }]).then(({error}) => {
                     if (error) console.error("Cloud Sync Error", error);
                 });
@@ -175,24 +173,19 @@
             row.innerHTML = `
                 <td rowspan="2" class="p-6 text-center font-bold text-zinc-200 text-4xl border-r">${index}</td>
                 <td class="p-5 morandi-pink font-mono font-bold border-l-[10px] border-rose-200 text-sm shadow-inner">${item.b1}</td>
-                <td class="p-2 bg-white text-center"><svg id="b1-v-${index}" class="barcode-svg" onclick="zoomBarcode('${item.b1}')"></svg></td>
+                <td class="p-2 bg-white text-center"><svg id="b1-v-${index}" class="barcode-svg"></svg></td>
                 <td rowspan="2" class="p-5 text-right font-mono text-[9px] text-zinc-400">${item.time}</td>
                 <td rowspan="2" class="p-5 text-center no-print">
-                    <button onclick="deleteItemByB2('${item.b2}')" class="text-zinc-200 hover:text-red-500"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
-                </td>
-            `;
+                    <button onclick="deleteItemByB2('${item.b2}')" class="text-zinc-200 hover:text-red-500 transition-all transform hover:scale-110">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    </button>
+                </td>`;
             const row2 = document.createElement('tr');
             row2.className = "hover:bg-zinc-50 transition-colors border-b";
-            row2.innerHTML = `
-                <td class="p-5 bg-zinc-50 font-mono font-bold text-sm border-l-[10px] border-zinc-100 shadow-inner">${item.b2}</td>
-                <td class="p-2 bg-white text-center"><svg id="b2-v-${index}" class="barcode-svg" onclick="zoomBarcode('${item.b2}')"></svg></td>
-            `;
-            
-            // 插入到最上方
+            row2.innerHTML = `<td class="p-5 bg-zinc-50 font-mono font-bold text-sm border-l-[10px] border-zinc-100 shadow-inner">${item.b2}</td>
+                             <td class="p-2 bg-white text-center"><svg id="b2-v-${index}" class="barcode-svg"></svg></td>`;
             tableBody.prepend(row2);
             tableBody.prepend(row);
-            
-            // 局部繪製條碼
             const opts = { format: "CODE39", height: 100, width: 1.2, displayValue: false, margin: 10 };
             JsBarcode(`#b1-v-${index}`, item.b1, opts);
             JsBarcode(`#b2-v-${index}`, item.b2, opts);
@@ -226,62 +219,80 @@
             }
         }
 
+        // --- 優化後的 PDF 匯出 (分頁截圖模式) ---
         async function exportToPDF() {
             if (scannedItems.length === 0) return;
-            pdfBtn.disabled = true;
-            pdfBtn.innerText = "處理中...";
             
-            // 建立一個隱藏的列印用容器，避免直接在畫面上操作導致卡頓
-            const printArea = document.createElement('div');
-            printArea.style.width = '210mm';
-            printArea.style.position = 'absolute';
-            printArea.style.left = '-9999px';
-            printArea.innerHTML = `<table style="width:100%; border-collapse:collapse; background:white;">
-                <thead><tr style="background:#f9fafb; font-size:10px; text-align:center;">
-                <th style="padding:10px; border:1px solid #eee;">No.</th>
-                <th style="padding:10px; border:1px solid #eee;">Details</th>
-                <th style="padding:10px; border:1px solid #eee;">Barcode</th>
-                <th style="padding:10px; border:1px solid #eee;">Time</th></tr></thead>
-                <tbody id="print-body"></tbody></table>`;
-            document.body.appendChild(printArea);
-            const pBody = printArea.querySelector('#print-body');
+            const overlay = document.getElementById('progress-overlay');
+            const progressText = document.getElementById('progress-text');
+            overlay.style.display = 'flex';
+            pdfBtn.disabled = true;
 
-            scannedItems.forEach((item, index) => {
-                const num = index + 1;
-                const row = `
-                    <tr><td rowspan="2" style="border:1px solid #eee; text-align:center; font-size:24px; color:#ccc; width:40px;">${num}</td>
-                    <td style="background:#FFF1F2; padding:15px; font-weight:bold; border:1px solid #eee;">${item.b1}</td>
-                    <td style="padding:5px; text-align:center; border:1px solid #eee;"><svg id="p-b1-${num}"></svg></td>
-                    <td rowspan="2" style="padding:10px; text-align:right; font-size:9px; color:#999; border:1px solid #eee;">${item.time}</td></tr>
-                    <tr><td style="padding:15px; font-weight:bold; border:1px solid #eee;">${item.b2}</td>
-                    <td style="padding:5px; text-align:center; border:1px solid #eee;"><svg id="p-b2-${num}"></svg></td></tr>`;
-                pBody.insertAdjacentHTML('beforeend', row);
-                JsBarcode(`#p-b1-${num}`, item.b1, { format: "CODE39", height: 80, width: 1.2, displayValue: false });
-                JsBarcode(`#p-b2-${num}`, item.b2, { format: "CODE39", height: 80, width: 1.2, displayValue: false });
-            });
+            const pdf = new jspdf.jsPDF('p', 'mm', 'a4');
+            const itemsPerPage = 5;
+            const totalPages = Math.ceil(scannedItems.length / itemsPerPage);
 
-            // 給予一點時間讓 SVG 渲染
-            setTimeout(async () => {
-                const canvas = await html2canvas(printArea, { scale: 1.5, useCORS: true });
-                const imgData = canvas.toDataURL('image/jpeg', 0.8);
-                const pdf = new jspdf.jsPDF('p', 'mm', 'a4');
-                const pw = 210, ph = 297;
-                const ih = (canvas.height * pw) / canvas.width;
-                let hl = ih, pos = 0;
+            // 建立一個專用的隱藏容器
+            const tempContainer = document.createElement('div');
+            tempContainer.style.width = '210mm';
+            tempContainer.style.position = 'fixed';
+            tempContainer.style.left = '-10000px';
+            tempContainer.style.background = 'white';
+            document.body.appendChild(tempContainer);
 
-                pdf.addImage(imgData, 'JPEG', 0, pos, pw, ih);
-                hl -= ph;
-                while (hl > 0) {
-                    pos = hl - ih;
-                    pdf.addPage();
-                    pdf.addImage(imgData, 'JPEG', 0, pos, pw, ih);
-                    hl -= ph;
-                }
-                pdf.save(`HI-LIFE_${scannedItems.length}_ITEMS.pdf`);
-                document.body.removeChild(printArea);
-                pdfBtn.disabled = false;
-                pdfBtn.innerText = "匯出 PDF";
-            }, 800);
+            for (let i = 0; i < totalPages; i++) {
+                progressText.innerText = `正在產生 PDF 第 ${i + 1} / ${totalPages} 頁...`;
+                
+                const chunk = scannedItems.slice(i * itemsPerPage, (i + 1) * itemsPerPage);
+                
+                tempContainer.innerHTML = `
+                    <div style="padding: 10mm; background: white;">
+                        <h2 style="font-size: 12px; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 10px; color: #666;">合勝大佃II - 萊爾富出貨報表 (Page ${i+1}/${totalPages})</h2>
+                        <table style="width: 100%; border-collapse: collapse; table-layout: fixed;">
+                            <tbody id="page-body"></tbody>
+                        </table>
+                    </div>`;
+                
+                const pBody = tempContainer.querySelector('#page-body');
+                
+                chunk.forEach((item, index) => {
+                    const realNum = (i * itemsPerPage) + index + 1;
+                    const rowHtml = `
+                        <tr style="border: 1px solid #eee;">
+                            <td rowspan="2" style="width: 15mm; text-align: center; font-size: 24pt; font-weight: bold; color: #ddd; border-right: 1px solid #eee;">${realNum}</td>
+                            <td style="height: 25mm; padding: 10px; font-weight: bold; font-size: 14pt; background: #FFF1F2; border-bottom: 1px solid #eee;">${item.b1}</td>
+                            <td style="padding: 2px; text-align: center; border-bottom: 1px solid #eee;"><svg id="p1-${realNum}"></svg></td>
+                            <td rowspan="2" style="width: 35mm; text-align: right; padding: 10px; font-size: 8pt; color: #999; border-left: 1px solid #eee;">${item.time}</td>
+                        </tr>
+                        <tr style="border: 1px solid #eee;">
+                            <td style="height: 25mm; padding: 10px; font-weight: bold; font-size: 14pt;">${item.b2}</td>
+                            <td style="padding: 2px; text-align: center;"><svg id="p2-${realNum}"></svg></td>
+                        </tr>`;
+                    pBody.insertAdjacentHTML('beforeend', rowHtml);
+                    
+                    const bOpts = { format: "CODE39", height: 75, width: 1.5, displayValue: false, margin: 5 };
+                    JsBarcode(`#p1-${realNum}`, item.b1, bOpts);
+                    JsBarcode(`#p2-${realNum}`, item.b2, bOpts);
+                });
+
+                // 等待小渲染時間
+                await new Promise(r => setTimeout(r, 300));
+
+                const canvas = await html2canvas(tempContainer, { scale: 1.5, useCORS: true });
+                const imgData = canvas.toDataURL('image/jpeg', 0.85);
+                
+                if (i > 0) pdf.addPage();
+                pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+            }
+
+            const now = new Date();
+            const dateStr = `${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+            pdf.save(`${dateStr}萊爾富-${scannedItems.length}件.pdf`);
+            
+            document.body.removeChild(tempContainer);
+            overlay.style.display = 'none';
+            pdfBtn.disabled = false;
+            pdfBtn.innerText = "匯出 PDF";
         }
 
         async function clearAll() {
